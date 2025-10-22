@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.sqlite3
+.venv/
+venv/
+env/
+instance/
+
+# FastAPI / Uvicorn
+*.db
+*.pid
+
+# Environment
+.env
+.env.local
+.env.*
+!.env.example
+
+# Mac & IDE junk
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Build / Cache
+dist/
+build/
+*.egg-info/
