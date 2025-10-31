@@ -1,48 +1,55 @@
+# backend/ai.py
 import os
-import google.generativeai as genai
+import requests
 from dotenv import load_dotenv
+from backend.ai import generate_reply
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# 🔑 Your Hugging Face API Key (set in .env)
+HF_API_TOKEN = os.getenv("HF_API_KEY")
 
-# 🧠 System prompt – controls the assistant’s personality
+# 🧠 Model — You can change this later to a larger one
+MODEL = "google/flan-t5-base"
+
+# 🎙️ System prompt (Jarvis personality)
 JARVIS_PROMPT = """
-You are Jarvis — a calm, intelligent AI assistant inspired by Iron Man’s AI.
-Your tone should be confident, respectful, and witty but never arrogant.
-Keep responses concise, clear, and human-like.
-If the user asks something you don’t know, admit it politely and suggest what you *can* do.
-Always address the user directly.
+You are Jarvis — a calm, intelligent, and loyal AI assistant inspired by Iron Man.
+Your tone should be confident, concise, and slightly witty.
+If the user asks something unclear, ask for clarification politely.
 """
 
 def generate_reply(text: str) -> str:
-    """
-    Generate a Jarvis-style reply using Gemini 2.5 Flash.
-    Fallback to rule-based replies if API fails.
-    """
-    print(f"💬 Incoming message: {text}")
+    """Generate a Jarvis-style reply using Hugging Face Inference API."""
+    headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+    payload = {
+        "inputs": f"{JARVIS_PROMPT}\n\nUser: {text}\nJarvis:",
+        "parameters": {
+            "max_new_tokens": 120,
+            "temperature": 0.7,
+            "do_sample": True
+        },
+    }
 
     try:
-        model = genai.GenerativeModel("models/gemini-2.5-flash")
-        prompt = f"{JARVIS_PROMPT}\n\nUser: {text}\nJarvis:"
+        res = requests.post(
+            f"https://api-inference.huggingface.co/models/{MODEL}",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        res.raise_for_status()
+        data = res.json()
 
-        print(f"🧠 Using model: {model.model_name}")
-        response = model.generate_content(prompt)
+        # Hugging Face API returns a list of outputs
+        if isinstance(data, list) and len(data) and "generated_text" in data[0]:
+            reply = data[0]["generated_text"].split("Jarvis:")[-1].strip()
+            print(f"🤖 Jarvis reply: {reply}")
+            return reply
 
-        if hasattr(response, "text") and response.text:
-            print(f"🤖 Gemini reply: {response.text}")
-            return response.text.strip()
-
-        print("⚠️ Empty response from Gemini.")
+        print("⚠️ Unexpected HF response:", data)
         return "I'm processing that, sir."
 
     except Exception as e:
-        print(f"❌ Gemini error: {e}")
-        t = text.lower()
-        if "turn on" in t and "light" in t:
-            return "✅ Simulated: turning on the light, sir."
-        if "turn off" in t and "light" in t:
-            return "✅ Simulated: turning off the light, sir."
-        if "hello" in t or "hi" in t:
-            return "Hello, sir. How can I assist you today?"
-        return "Apologies, sir — I couldn’t connect to Gemini right now."
+        print(f"❌ Hugging Face API error: {e}")
+        return "Apologies, sir — I ran into an issue while thinking."
